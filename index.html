@@ -33,7 +33,9 @@ label.small{display:block;font-size:11px;font-weight:700;margin:8px 0 4px}.field
  <div class="card">
   <h2>① 載入 VRM</h2>
   <label class="drop" id="drop"><strong>拖入 VRM 模型</strong><br><small class="muted">或點擊選擇 .vrm</small><input id="file" type="file" accept=".vrm"></label>
-  <div id="status" class="status">尚未載入</div><div class="progress"><i id="bar"></i></div>
+  <div id="status" class="status">尚未載入</div>
+  <div id="runtime" class="muted" style="margin-top:6px">正在初始化 3D / VRM 模組…</div>
+  <div class="progress"><i id="bar"></i></div>
  </div>
  <div class="card">
   <h2>② 選擇要拆出的服裝 Mesh</h2>
@@ -85,19 +87,30 @@ label.small{display:block;font-size:11px;font-weight:700;margin:8px 0 4px}.field
   <h2>匯出狀態</h2><div id="exportInfo" class="info">等待選擇。</div>
  </div>
  <div class="card"><h2>處理紀錄</h2><div id="log" class="log">等待載入…</div></div>
- <div class="warn"><b>載入提示：</b>本工具需要瀏覽器允許載入 CDN 的 Three.js / VRM 函式庫。若直接雙擊 HTML 後 CDN 被瀏覽器環境阻擋，請用本機 HTTP Server 開啟；正常情況下不需要上傳 VRM。<br><br>目前已經是真正的「部件資料抽取」：會從選取 Mesh 讀取頂點、索引、UV、法線、材質、貼圖與 skin attribute，並建立獨立的 GLB 中間資產。<br><br>vroidcustomitem / XWear 的最終包裝仍需要各格式的實際規格；本頁不會把普通 ZIP 冒充成合法格式。</div>
+ <div class="warn"><b>載入提示：</b>此版本使用 three-vrm 官方文件所示的 Import Map 方式，讓 Three.js、GLTFLoader 與 three-vrm 共用同一份 Three.js。<br><br>目前已經是真正的「部件資料抽取」：會從選取 Mesh 讀取頂點、索引、UV、法線、材質、貼圖與 skin attribute，並建立獨立的 GLB 中間資產。<br><br>vroidcustomitem / XWear 的最終包裝仍需要各格式的實際規格；本頁不會把普通 ZIP 冒充成合法格式。</div>
 </section>
 </div>
 
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+    "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.5.5/lib/three-vrm.module.min.js"
+  }
+}
+</script>
 <script type="module">
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js";
-import {OrbitControls} from "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/controls/OrbitControls.js";
-import {GLTFLoader} from "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/loaders/GLTFLoader.js";
-import {GLTFExporter} from "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/exporters/GLTFExporter.js";
-import {VRMLoaderPlugin,VRMUtils} from "https://esm.sh/@pixiv/three-vrm@3.4.3?bundle";
+import * as THREE from "three";
+import {OrbitControls} from "three/addons/controls/OrbitControls.js";
+import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
+import {GLTFExporter} from "three/addons/exporters/GLTFExporter.js";
+import {VRMLoaderPlugin,VRMUtils} from "@pixiv/three-vrm";
 import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
 
 const $=x=>document.getElementById(x), log=x=>{$("log").textContent+="\\n"+x;$("log").scrollTop=$("log").scrollHeight};
+$("runtime").textContent="VRM 模組已載入：Three.js "+THREE.REVISION;
+$("log").textContent="VRM 模組初始化成功：Three.js r"+THREE.REVISION;
 const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(35,1,.01,100);
 camera.position.set(0,1.25,3);const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));$("viewport").appendChild(renderer.domElement);
@@ -113,6 +126,11 @@ function cloth(n){return /cloth|dress|shirt|top|skirt|pants|shorts|shoe|sock|boo
 function clearModel(){if(root){scene.remove(root);VRMUtils.deepDispose(root)}root=null;vrm=null;meshes=[];selected.clear()}
 async function load(file){
  if(!file) return;
+ if(!/\.vrm$/i.test(file.name)){
+   $("status").textContent="請選擇 .vrm 檔案";
+   log("不是 VRM 檔："+file.name);
+   return;
+ }
  $("bar").style.width="5%";clearModel();sourceName=file.name;
  $("status").textContent="讀取 VRM…";
  try{
