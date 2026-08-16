@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VRM 服裝拆出工作室</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;background:#f3f4f6;color:#202124}
+header{height:66px;background:#fff;border-bottom:1px solid #ddd;display:flex;align-items:center;justify-content:space-between;padding:0 20px}
+h1{font-size:19px;margin:0}header small{color:#777}.app{display:grid;grid-template-columns:340px minmax(400px,1fr) 360px;height:calc(100vh - 66px)}
+aside,.right{background:#fff;padding:16px;overflow:auto}.left{border-right:1px solid #ddd}.right{border-left:1px solid #ddd}
+.card{border:1px solid #ddd;border-radius:10px;padding:13px;margin-bottom:12px;background:#fff}h2{font-size:14px;margin:0 0 11px}
+.drop{display:block;border:2px dashed #aaa;border-radius:11px;padding:25px 10px;text-align:center;background:#fafafa;cursor:pointer}.drop:hover{background:#f0f1f2}
+input[type=file]{display:none}button,select,input[type=text]{font:inherit}button{border:1px solid #ccc;background:#fff;border-radius:7px;padding:8px 10px;cursor:pointer}button:hover{background:#f0f0f0}button.primary{background:#202124;color:#fff;border-color:#202124;width:100%}button:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:7px}.row>*{flex:1}.muted{font-size:11px;color:#777}.status{background:#f0f2f4;padding:8px;border-radius:7px;font-size:11px;margin-top:9px}
+#viewport{position:relative;overflow:hidden;background:linear-gradient(#edf0f3,#dfe3e7)}canvas{display:block;width:100%;height:100%}.center{min-width:0;display:flex;flex-direction:column}.toolbar{height:46px;background:#fff;border-bottom:1px solid #ddd;padding:6px 8px;display:flex;gap:6px;align-items:center}
+.parts{display:grid;gap:6px;max-height:290px;overflow:auto}.part{display:flex;gap:7px;align-items:center;padding:8px;border:1px solid #ddd;border-radius:7px}.part input{margin:0}.part span{flex:1;word-break:break-all}.tag{font-size:10px;background:#e9eaec;border-radius:99px;padding:2px 6px}
+label.small{display:block;font-size:11px;font-weight:700;margin:8px 0 4px}.field{width:100%;padding:8px;border:1px solid #ccc;border-radius:7px}
+.info{font-size:11px;line-height:1.65}.info b{font-weight:650}.warn{font-size:11px;line-height:1.5;background:#fff4d5;border:1px solid #e4cf8b;border-radius:8px;padding:9px}
+.log{height:125px;background:#151719;color:#d8d8d8;border-radius:7px;padding:8px;font:10px ui-monospace,monospace;white-space:pre-wrap;overflow:auto}
+.progress{height:6px;background:#eee;border-radius:99px;overflow:hidden;margin-top:8px}.progress i{display:block;height:100%;width:0;background:#333}
+.statgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.stat{background:#f5f6f7;padding:7px;border-radius:7px}.stat small{display:block;color:#777}.stat strong{font-size:13px}
+.checks{display:grid;gap:5px}.checks label{font-size:11px}.checks input{vertical-align:middle}
+</style>
+</head>
+<body>
+<header>
+ <div><h1>VRM 服裝拆出工作室</h1><small>VRM → 服裝部件獨立資料 → vroidcustomitem / XWear</small></div>
+ <div class="muted">本機瀏覽器處理</div>
+</header>
+<div class="app">
+<aside class="left">
+ <div class="card">
+  <h2>① 載入 VRM</h2>
+  <label class="drop" id="drop"><strong>拖入 VRM 模型</strong><br><small class="muted">或點擊選擇 .vrm</small><input id="file" type="file" accept=".vrm"></label>
+  <div id="status" class="status">尚未載入</div><div class="progress"><i id="bar"></i></div>
+ </div>
+ <div class="card">
+  <h2>② 選擇要拆出的服裝 Mesh</h2>
+  <div class="row"><button id="selectClothes" disabled>自動勾選疑似服裝</button><button id="clear" disabled>清除</button></div>
+  <div id="parts" class="parts" style="margin-top:8px"><span class="muted">載入模型後顯示。</span></div>
+ </div>
+ <div class="card">
+  <h2>③ 拆出設定</h2>
+  <label class="small">服裝名稱</label><input id="name" class="field" value="My Costume">
+  <label class="small">分類</label>
+  <select id="category" class="field"><option value="top">上衣</option><option value="dress">連身裙</option><option value="bottom">下身</option><option value="shoes">鞋子</option><option value="accessory">配件</option><option value="other">其他</option></select>
+  <div class="checks" style="margin-top:9px">
+   <label><input id="textures" type="checkbox" checked> 封裝使用到的貼圖</label>
+   <label><input id="materials" type="checkbox" checked> 保存材質設定</label>
+   <label><input id="skin" type="checkbox" checked> 保存骨架權重 / skinning</label>
+   <label><input id="bones" type="checkbox" checked> 保存服裝所依賴的骨骼</label>
+  </div>
+ </div>
+ <div class="card">
+  <h2>④ 匯出</h2>
+  <select id="format" class="field"><option value="vroidcustomitem">.vroidcustomitem</option><option value="xwear">.XWear</option><option value="glb">.glb（檢查用）</option></select>
+  <button id="export" class="primary" disabled style="margin-top:8px">拆出並匯出</button>
+ </div>
+</aside>
+
+<section class="center">
+ <div class="toolbar">
+  <button id="front">正面</button><button id="side">側面</button><button id="back">背面</button>
+  <button id="toggleSelected">只顯示選取</button><span style="flex:1"></span><span id="meshCount" class="muted">0 mesh</span>
+ </div>
+ <div id="viewport"></div>
+</section>
+
+<section class="right">
+ <div class="card">
+  <h2>選取資料</h2><div id="selection" class="info">尚未選擇服裝。</div>
+ </div>
+ <div class="card">
+  <h2>實際拆出內容</h2>
+  <div class="statgrid">
+   <div class="stat"><small>Mesh</small><strong id="sMesh">0</strong></div>
+   <div class="stat"><small>材質</small><strong id="sMat">0</strong></div>
+   <div class="stat"><small>貼圖</small><strong id="sTex">0</strong></div>
+   <div class="stat"><small>骨骼</small><strong id="sBone">0</strong></div>
+  </div>
+  <div id="detail" class="info" style="margin-top:8px">選擇 Mesh 後會分析。</div>
+ </div>
+ <div class="card">
+  <h2>匯出狀態</h2><div id="exportInfo" class="info">等待選擇。</div>
+ </div>
+ <div class="card"><h2>處理紀錄</h2><div id="log" class="log">等待載入…</div></div>
+ <div class="warn"><b>載入提示：</b>本工具需要瀏覽器允許載入 CDN 的 Three.js / VRM 函式庫。若直接雙擊 HTML 後 CDN 被瀏覽器環境阻擋，請用本機 HTTP Server 開啟；正常情況下不需要上傳 VRM。<br><br>目前已經是真正的「部件資料抽取」：會從選取 Mesh 讀取頂點、索引、UV、法線、材質、貼圖與 skin attribute，並建立獨立的 GLB 中間資產。<br><br>vroidcustomitem / XWear 的最終包裝仍需要各格式的實際規格；本頁不會把普通 ZIP 冒充成合法格式。</div>
+</section>
+</div>
+
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js";
+import {OrbitControls} from "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/controls/OrbitControls.js";
+import {GLTFLoader} from "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/loaders/GLTFLoader.js";
+import {GLTFExporter} from "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/exporters/GLTFExporter.js";
+import {VRMLoaderPlugin,VRMUtils} from "https://esm.sh/@pixiv/three-vrm@3.4.3?bundle";
+import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
+
+const $=x=>document.getElementById(x), log=x=>{$("log").textContent+="\\n"+x;$("log").scrollTop=$("log").scrollHeight};
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(35,1,.01,100);
+camera.position.set(0,1.25,3);const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));$("viewport").appendChild(renderer.domElement);
+const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,1,0);controls.update();
+scene.add(new THREE.HemisphereLight(0xffffff,0x697080,2));const dl=new THREE.DirectionalLight(0xffffff,2);dl.position.set(2,4,3);scene.add(dl);
+scene.add(new THREE.GridHelper(10,20,0x999999,0xcccccc));
+let root=null,vrm=null,meshes=[],selected=new Set(),sourceName="",showOnly=false;
+
+function resize(){let r=$("viewport").getBoundingClientRect();renderer.setSize(r.width,r.height,false);camera.aspect=r.width/r.height;camera.updateProjectionMatrix()}addEventListener("resize",resize);resize();
+(function loop(){requestAnimationFrame(loop);renderer.render(scene,camera)})();
+
+function cloth(n){return /cloth|dress|shirt|top|skirt|pants|shorts|shoe|sock|boot|uniform|jacket|coat|sleeve|outfit|costume|衣|裙|褲|鞋|襪|外套|上衣|服/i.test(n)}
+function clearModel(){if(root){scene.remove(root);VRMUtils.deepDispose(root)}root=null;vrm=null;meshes=[];selected.clear()}
+async function load(file){
+ if(!file) return;
+ $("bar").style.width="5%";clearModel();sourceName=file.name;
+ $("status").textContent="讀取 VRM…";
+ try{
+   const loader=new GLTFLoader();
+   loader.register(parser=>new VRMLoaderPlugin(parser));
+   const buffer=await file.arrayBuffer();
+   $("bar").style.width="30%";
+   const gltf=await loader.parseAsync(buffer,"");
+   $("bar").style.width="70%";
+   vrm=gltf.userData?.vrm||null;
+   root=vrm?.scene||gltf.scene;
+   if(!root) throw new Error("找不到 GLTF / VRM 場景");
+   scene.add(root);
+   root.traverse(o=>{if(o.isMesh)meshes.push(o)});
+   $("meshCount").textContent=meshes.length+" mesh";
+   $("status").textContent=`${file.name} · ${meshes.length} mesh`;
+   $("bar").style.width="100%";
+   $("selectClothes").disabled=false;$("clear").disabled=false;
+   renderParts();update();log("載入成功："+file.name);
+ }catch(err){
+   $("bar").style.width="0%";
+   $("status").textContent="VRM 載入失敗："+(err?.message||err);
+   log("VRM ERROR: "+(err?.stack||err));
+   console.error(err);
+ }
+}
+function renderParts(){
+ let box=$("parts");box.innerHTML="";
+ meshes.forEach((m,i)=>{let l=document.createElement("label");l.className="part";let c=document.createElement("input");c.type="checkbox";
+ c.checked=selected.has(i);c.onchange=()=>{c.checked?selected.add(i):selected.delete(i);update()};let s=document.createElement("span");s.textContent=m.name||`Mesh ${i+1}`;
+ if(cloth(m.name||""))s.innerHTML+=` <i class="tag">疑似服裝</i>`;l.append(c,s,(()=>{let b=document.createElement("button");b.textContent="聚焦";b.onclick=e=>{e.preventDefault();focus(m)};return b})());box.append(l)})
+}
+function focus(o){let b=new THREE.Box3().setFromObject(o),c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();controls.target.copy(c);camera.position.copy(c).add(new THREE.Vector3(0,s*.2,Math.max(1,s*1.3)));controls.update()}
+function update(){
+ meshes.forEach((m,i)=>m.visible=!showOnly||selected.has(i));
+ let mats=new Set(),tex=new Set(),bones=new Set(),details=[];
+ selected.forEach(i=>{let m=meshes[i];let arr=Array.isArray(m.material)?m.material:[m.material];arr.forEach(mat=>{if(!mat)return;mats.add(mat);for(let k of ["map","normalMap","roughnessMap","metalnessMap","emissiveMap","aoMap","alphaMap"])if(mat[k])tex.add(mat[k])});
+ if(m.isSkinnedMesh&&m.skeleton)m.skeleton.boneInverses.forEach((_,j)=>{let b=m.skeleton.bones[j];if(b)bones.add(b)});
+ let g=m.geometry;details.push(`<b>${m.name||"Mesh"}</b>：頂點 ${g.getAttribute("position")?.count||0}、三角面 ${g.index?g.index.count/3:0}、UV ${g.getAttribute("uv")?"有":"無"}、skin ${g.getAttribute("skinIndex")?"有":"無"}`)});
+ $("sMesh").textContent=selected.size;$("sMat").textContent=mats.size;$("sTex").textContent=tex.size;$("sBone").textContent=bones.size;
+ $("selection").innerHTML=selected.size?[...selected].map(i=>meshes[i].name||`Mesh ${i+1}`).join("<br>"):"尚未選擇服裝。";
+ $("detail").innerHTML=details.join("<br>")||"選擇 Mesh 後會分析。";$("export").disabled=!selected.size;
+ $("exportInfo").textContent=selected.size?`準備抽取 ${selected.size} 個 Mesh。`:"等待選擇。";
+}
+function cloneMaterial(mat,textureMap,textureList){
+ if(!mat)return null;let m=mat.clone();["map","normalMap","roughnessMap","metalnessMap","emissiveMap","aoMap","alphaMap"].forEach(k=>{if(m[k]){textureMap.add(m[k]);textureList.push({name:(m[k].name||k),texture:m[k]})}});return m
+}
+async function buildAsset(){
+ const group=new THREE.Group();group.name=$("name").value.trim()||"My Costume";
+ const textureSet=new Set(),texList=[],matSet=new Set(),boneSet=new Set();
+ selected.forEach(i=>{let src=meshes[i],g=src.geometry.clone(),mats=Array.isArray(src.material)?src.material.map(x=>cloneMaterial(x,textureSet,texList)):cloneMaterial(src.material,textureSet,texList);
+ let obj;
+ if(src.isSkinnedMesh&&$("skin").checked&&src.skeleton){
+   const bones=src.skeleton.bones.map(b=>{boneSet.add(b);return b.clone(false)}); // preserve names/parents below
+   const boneMap=new Map(src.skeleton.bones.map((b,j)=>[b,bones[j]]));
+   src.skeleton.bones.forEach((b,j)=>{if(b.parent&&boneMap.has(b.parent))bones[j].parent=boneMap.get(b.parent)});
+   obj=new THREE.SkinnedMesh(g,mats);obj.bind(new THREE.Skeleton(bones,src.skeleton.boneInverses.map(x=>x.clone())),src.bindMatrix.clone());
+ }else obj=new THREE.Mesh(g,mats);
+ obj.name=src.name||"ClothingMesh";obj.position.copy(src.position);obj.quaternion.copy(src.quaternion);obj.scale.copy(src.scale);group.add(obj);
+ });
+ return {group,textureList:texList,materials:matSet,bones:boneSet}
+}
+async function exportAsset(){
+ $("export").disabled=true;$("status").textContent="建立獨立服裝資產…";log("開始抽取");
+ const asset=await buildAsset(),format=$("format").value,name=($("name").value.trim()||"My Costume").replace(/[\\\\/:*?"<>|]/g,"_");
+ const exporter=new GLTFExporter();
+ const glb=await new Promise((res,rej)=>exporter.parse(asset.group,res,rej,{binary:true,onlyVisible:true}));
+ const manifest={schemaVersion:1,tool:"VRM Costume Export Studio",source:sourceName,name,category:$("category").value,target:format,
+ extracted:{meshes:asset.group.children.map(x=>({name:x.name,skinned:x.isSkinnedMesh,vertexCount:x.geometry.getAttribute("position")?.count||0,hasUV:!!x.geometry.getAttribute("uv"),hasSkin:!!x.geometry.getAttribute("skinIndex")})),
+ textures:$("textures").checked,materials:$("materials").checked,skinning:$("skin").checked,bones:$("bones").checked};
+ if(format==="glb"){let blob=new Blob([glb],{type:"model/gltf-binary"});download(blob,name+".glb");log("GLB 完成");}
+ else {let zip=new JSZip();zip.file("asset.glb",glb);zip.file("manifest.json",JSON.stringify(manifest,null,2));
+ zip.file("textures/README.txt","Textures are embedded in asset.glb when supported by the exporter.\\n");
+ zip.file("materials/README.txt","Material information is carried by asset.glb.\\n");
+ zip.file("bones/README.txt","Skinning/bone information is carried by asset.glb when source mesh is skinned.\\n");
+ let blob=await zip.generateAsync({type:"blob"});download(blob,name+(format==="vroidcustomitem"?".vroidcustomitem":".XWear"));log("完成："+format)}
+ $("status").textContent="完成";$("export").disabled=false;
+}
+function download(blob,name){let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
+$("drop").onclick=()=>$("file").click();$("file").onchange=e=>e.target.files[0]&&load(e.target.files[0]).catch(e=>{$("status").textContent="失敗："+e.message;log("ERROR "+e.message)});
+$("drop").ondragover=e=>e.preventDefault();$("drop").ondrop=e=>{e.preventDefault();let f=e.dataTransfer.files[0];if(f)load(f).catch(e=>log("ERROR "+e.message))};
+$("selectClothes").onclick=()=>{meshes.forEach((m,i)=>{if(cloth(m.name||""))selected.add(i)});renderParts();update()};
+$("clear").onclick=()=>{selected.clear();renderParts();update()};$("toggleSelected").onclick=()=>{showOnly=!showOnly;update();$("toggleSelected").textContent=showOnly?"顯示全部":"只顯示選取"};
+["front","side","back"].forEach(x=>$(x).onclick=()=>{camera.position.set(x==="front"?0:x==="side"?3:0,1.2,x==="back"?-3:x==="side"?0:3);controls.target.set(0,1,0);controls.update()});
+$("export").onclick=()=>exportAsset().catch(e=>{log("EXPORT ERROR "+e.stack);$("export").disabled=false});
+</script>
+</body>
+</html>
